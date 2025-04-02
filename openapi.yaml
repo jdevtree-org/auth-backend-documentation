@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
   title: jdevtree Auth API
-  description: Authentication microservice for jdevtree. Supports GitHub OAuth and local JWT auth flows.
+  description: Authentication microservice for jdevtree. Supports GitHub OAuth and
+    local JWT auth flows.
   version: 1.0.0
 servers:
   - url: http://localhost:8080
     description: Local development server
-
 paths:
   /auth/oauth/github:
     post:
@@ -24,7 +24,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponseBean'
-
+        '500': &id001
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                internalError:
+                  summary: Server error
+                  value:
+                    code: INTERNAL_SERVER_ERROR
+                    message: Unexpected error occurred
+                    data: null
+        '400':
+          description: Invalid GitHub code or redirect URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCode:
+                  summary: Invalid GitHub code
+                  value:
+                    code: INVALID_GITHUB_CODE
+                    message: The provided GitHub code is invalid or expired
+                    data: null
+        '403':
+          description: GitHub authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                githubUnauthorized:
+                  summary: Unauthorized GitHub request
+                  value:
+                    code: GITHUB_UNAUTHORIZED
+                    message: Your GitHub request was unauthorized
+                    data: null
   /auth/oauth/github/link:
     post:
       summary: Link GitHub account
@@ -43,7 +81,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserResponseBean'
-
+        '500': *id001
+        '400':
+          description: GitHub account already linked or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                githubLinkFail:
+                  summary: GitHub already linked or missing JWT
+                  value:
+                    code: GITHUB_ALREADY_LINKED
+                    message: This GitHub account is already linked
+                    data: null
+        '401':
+          description: Unauthorized - JWT missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unauthorized:
+                  summary: JWT missing or invalid
+                  value:
+                    code: UNAUTHORIZED
+                    message: Authentication token is missing or invalid
+                    data: null
   /auth/refresh:
     post:
       summary: Refresh access token
@@ -60,7 +124,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponseBean'
-
+        '500': *id001
+        '400':
+          description: Missing or malformed refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidRefresh:
+                  summary: Refresh token missing or invalid
+                  value:
+                    code: INVALID_REFRESH_TOKEN
+                    message: The refresh token is invalid or malformed
+                    data: null
+        '403':
+          description: Refresh token has been reused or blacklisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                reusedToken:
+                  summary: Refresh token reused
+                  value:
+                    code: REFRESH_TOKEN_REUSED
+                    message: This refresh token has already been used or is blacklisted
+                    data: null
   /auth/logout:
     post:
       summary: Logout and revoke tokens
@@ -78,19 +168,35 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: logged_out
-
+                $ref: '#/components/schemas/LogoutResponse'
+              examples:
+                success:
+                  summary: Successful logout
+                  value:
+                    code: SUCCESS
+                    message: Logout successful
+                    data:
+                      status: logged_out
+        '500': *id001
+        '401':
+          description: JWT token missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unauthorizedLogout:
+                  summary: JWT missing or invalid
+                  value:
+                    code: UNAUTHORIZED
+                    message: Authentication token is missing or invalid
+                    data: null
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-
   schemas:
     AuthRequest:
       type: object
@@ -99,22 +205,23 @@ components:
           type: string
         redirectUrl:
           type: string
-      required: [code, redirectUrl]
-
+      required:
+        - code
+        - redirectUrl
     RefreshRequest:
       type: object
       properties:
         refreshToken:
           type: string
-      required: [refreshToken]
-
+      required:
+        - refreshToken
     RefreshTokenRequest:
       type: object
       properties:
         refreshToken:
           type: string
-      required: [refreshToken]
-
+      required:
+        - refreshToken
     AuthResponse:
       type: object
       properties:
@@ -130,13 +237,12 @@ components:
           example: 3600
         refreshToken:
           type: string
-
     UserView:
       type: object
       properties:
         id:
           type: string
-          example: "123e4567-e89b-12d3-a456-426614174000"
+          example: 123e4567-e89b-12d3-a456-426614174000
         username:
           type: string
           example: johndoe
@@ -146,9 +252,11 @@ components:
           example: johndoe@example.com
         status:
           type: string
-          enum: [ACTIVE, PENDING, INACTIVE]
+          enum:
+            - ACTIVE
+            - PENDING
+            - INACTIVE
           example: ACTIVE
-
     AuthResponseBean:
       type: object
       properties:
@@ -158,7 +266,6 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/AuthResponse'
-
     UserResponseBean:
       type: object
       properties:
@@ -168,3 +275,20 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/UserView'
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: INTERNAL_SERVER_ERROR
+        message:
+          type: string
+          example: Unexpected error occurred
+        data:
+          nullable: true
+    LogoutResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: logged_out
