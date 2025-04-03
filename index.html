@@ -1,20 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>jdevtree Auth API</title>
-    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>jdevtree API Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./redoc-custom.css" />
 </head>
 <body>
-<div id="swagger-ui"></div>
-<script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+<!-- Dark/Light Mode Toggle Button -->
+<div id="toggleButton">Switch to Dark Mode</div>
+
+<!-- Redoc Container -->
+<div id="redoc-container"></div>
+
+<!-- Redoc Script -->
+<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 <script>
-    window.onload = () => {
-        SwaggerUIBundle({
-            url: "./openapi.yaml",
-            dom_id: "#swagger-ui",
-        });
+    // Define theme objects for Redoc
+    const lightTheme = {
+        theme: {
+            colors: {
+                primary: { main: '#3498db' },
+                text: { primary: '#333333', secondary: '#555555' },
+                background: { primary: '#ffffff' }
+            }
+        }
     };
+
+    const darkTheme = {
+        theme: {
+            colors: {
+                primary: { main: '#3498db' },
+                text: { primary: '#ffffff', secondary: '#cccccc' },
+                background: { primary: '#121212' }
+            }
+        }
+    };
+
+    let currentTheme = 'light';
+
+    function renderRedoc(themeOptions) {
+        Redoc.init('openapi.yaml', themeOptions, document.getElementById('redoc-container'));
+    }
+
+    // Initial render with light theme
+    renderRedoc(lightTheme);
+
+    // Toggle button functionality
+    document.getElementById('toggleButton').addEventListener('click', () => {
+        if (currentTheme === 'light') {
+            currentTheme = 'dark';
+            document.body.classList.add('dark-mode');
+            document.getElementById('toggleButton').textContent = 'Switch to Light Mode';
+            document.getElementById('redoc-container').innerHTML = '';
+            renderRedoc(darkTheme);
+        } else {
+            currentTheme = 'light';
+            document.body.classList.remove('dark-mode');
+            document.getElementById('toggleButton').textContent = 'Switch to Dark Mode';
+            document.getElementById('redoc-container').innerHTML = '';
+            renderRedoc(lightTheme);
+        }
+    });
 </script>
 </body>
 </html>

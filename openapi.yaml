@@ -23,46 +23,28 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponseBean'
+                $ref: '#/components/schemas/AuthResponseWrapper'
         '500': &id001
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: INTERNAL_SERVER_ERROR
+                  message:
+                    type: string
+                    example: Unexpected error occurred
               examples:
-                internalError:
-                  summary: Server error
+                internal_server_error:
+                  summary: Internal server error
                   value:
                     code: INTERNAL_SERVER_ERROR
                     message: Unexpected error occurred
-                    data: null
-        '400':
-          description: Invalid GitHub code or redirect URL
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalidCode:
-                  summary: Invalid GitHub code
-                  value:
-                    code: INVALID_GITHUB_CODE
-                    message: The provided GitHub code is invalid or expired
-                    data: null
-        '403':
-          description: GitHub authentication failed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                githubUnauthorized:
-                  summary: Unauthorized GitHub request
-                  value:
-                    code: GITHUB_UNAUTHORIZED
-                    message: Your GitHub request was unauthorized
-                    data: null
+      tags:
+        - Authentication
   /auth/oauth/github/link:
     post:
       summary: Link GitHub account
@@ -80,34 +62,48 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponseBean'
+                $ref: '#/components/schemas/UserResponseWrapper'
         '500': *id001
-        '400':
-          description: GitHub account already linked or missing token
+        '401': &id003
+          description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: UNAUTHORIZED
+                  message:
+                    type: string
+                    example: Authentication token is missing or invalid
               examples:
-                githubLinkFail:
-                  summary: GitHub already linked or missing JWT
+                missingToken:
+                  summary: Missing or invalid JWT token
                   value:
-                    code: GITHUB_ALREADY_LINKED
-                    message: This GitHub account is already linked
-                    data: null
-        '401':
-          description: Unauthorized - JWT missing or invalid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                unauthorized:
-                  summary: JWT missing or invalid
-                  value:
-                    code: UNAUTHORIZED
+                    code: AUTH_TOKEN_MISSING
                     message: Authentication token is missing or invalid
-                    data: null
+        '403': &id002
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: FORBIDDEN
+                  message:
+                    type: string
+                    example: You are not allowed to perform this action
+              examples:
+                accessDenied:
+                  summary: Not allowed to perform this action
+                  value:
+                    code: ACCESS_DENIED
+                    message: You are not allowed to perform this action
+      tags:
+        - Authentication
   /auth/refresh:
     post:
       summary: Refresh access token
@@ -123,34 +119,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponseBean'
+                $ref: '#/components/schemas/AuthResponseWrapper'
         '500': *id001
-        '400':
-          description: Missing or malformed refresh token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalidRefresh:
-                  summary: Refresh token missing or invalid
-                  value:
-                    code: INVALID_REFRESH_TOKEN
-                    message: The refresh token is invalid or malformed
-                    data: null
-        '403':
-          description: Refresh token has been reused or blacklisted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                reusedToken:
-                  summary: Refresh token reused
-                  value:
-                    code: REFRESH_TOKEN_REUSED
-                    message: This refresh token has already been used or is blacklisted
-                    data: null
+        '403': *id002
+      tags:
+        - Authentication
   /auth/logout:
     post:
       summary: Logout and revoke tokens
@@ -168,29 +141,314 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogoutResponse'
-              examples:
-                success:
-                  summary: Successful logout
-                  value:
-                    code: SUCCESS
-                    message: Logout successful
-                    data:
-                      status: logged_out
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: logged_out
         '500': *id001
-        '401':
-          description: JWT token missing or invalid
+        '401': *id003
+        '403': *id002
+      tags:
+        - Authentication
+  /account/register:
+    post:
+      summary: Register a new local user
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registration successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/AuthResponseWrapper'
+        '500': *id001
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponseWrapper'
               examples:
-                unauthorizedLogout:
-                  summary: JWT missing or invalid
+                created:
+                  summary: Account registered
                   value:
-                    code: UNAUTHORIZED
-                    message: Authentication token is missing or invalid
-                    data: null
+                    code: REGISTER_SUCCESS
+                    message: Account successfully registered
+                    data:
+                      accessToken: jwt-token
+                      refreshToken: refresh-token
+                      user:
+                        id: uuid
+                        username: janedoe
+                        email: jane@example.com
+                        status: PENDING
+        '400':
+          description: Bad request due to validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                username:
+                  summary: username is missing
+                  value:
+                    code: MISSING_USERNAME
+                    message: Username is required
+                email:
+                  summary: email is missing
+                  value:
+                    code: MISSING_EMAIL
+                    message: Email is required
+                password:
+                  summary: password is missing
+                  value:
+                    code: MISSING_PASSWORD
+                    message: Password is required
+  /account/login:
+    post:
+      summary: Login using username and password
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponseWrapper'
+        '500': *id001
+        '400':
+          description: Bad request due to validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                username:
+                  summary: username is missing
+                  value:
+                    code: MISSING_USERNAME
+                    message: Username is required
+                password:
+                  summary: password is missing
+                  value:
+                    code: MISSING_PASSWORD
+                    message: Password is required
+  /account/me:
+    get:
+      summary: Get authenticated user's profile
+      tags:
+        - Account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseWrapper'
+        '500': *id001
+        '401': *id003
+  /account/change-password:
+    post:
+      summary: Change password for logged-in user
+      tags:
+        - Account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseWrapper'
+        '500': *id001
+        '401': *id003
+        '403': *id002
+        '400':
+          description: Bad request due to validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                currentPassword:
+                  summary: currentPassword is missing
+                  value:
+                    code: MISSING_CURRENT_PASSWORD
+                    message: Current password is required
+                newPassword:
+                  summary: newPassword is missing
+                  value:
+                    code: MISSING_NEW_PASSWORD
+                    message: New password is required
+  /account/reset-password/request:
+    post:
+      summary: Initiate password reset via email
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequestRequest'
+      responses:
+        '200':
+          description: Reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '500': *id001
+        '400':
+          description: Bad request due to validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                email:
+                  summary: email is missing
+                  value:
+                    code: MISSING_EMAIL
+                    message: Email is required
+  /account/reset-password/confirm:
+    post:
+      summary: Confirm and perform password reset
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordConfirmRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '500': *id001
+        '400':
+          description: Bad request due to validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                token:
+                  summary: token is missing
+                  value:
+                    code: MISSING_RESET_TOKEN
+                    message: Reset token is required
+                newPassword:
+                  summary: newPassword is missing
+                  value:
+                    code: MISSING_NEW_PASSWORD
+                    message: New password is required
+  /account/send-verification:
+    post:
+      summary: Send verification email
+      tags:
+        - Account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '500': *id001
+        '401': *id003
+  /account/verify:
+    post:
+      summary: Verify email using token
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseWrapper'
+        '500': *id001
+        '403': *id002
+        '400':
+          description: Bad request due to validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                token:
+                  summary: token is missing
+                  value:
+                    code: MISSING_VERIFICATION_TOKEN
+                    message: Verification token is required
 components:
   securitySchemes:
     bearerAuth:
@@ -198,6 +456,35 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    ResponseEnvelope:
+      type: object
+      properties:
+        code:
+          type: string
+          example: SUCCESS
+        message:
+          type: string
+          example: Operation completed successfully
+        data:
+          type: object
+      required:
+        - code
+        - message
+        - data
+    AuthResponseWrapper:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AuthResponse'
+    UserResponseWrapper:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserView'
     AuthRequest:
       type: object
       properties:
@@ -257,38 +544,86 @@ components:
             - PENDING
             - INACTIVE
           example: ACTIVE
-    AuthResponseBean:
+    RegisterRequest:
       type: object
       properties:
-        code:
+        username:
           type: string
-        message:
+          example: janedoe
+        email:
           type: string
-        data:
-          $ref: '#/components/schemas/AuthResponse'
-    UserResponseBean:
+          format: email
+          example: jane@example.com
+        password:
+          type: string
+          format: password
+          example: securePass123
+      required:
+        - username
+        - email
+        - password
+    LoginRequest:
       type: object
       properties:
-        code:
+        username:
           type: string
-        message:
+          example: janedoe
+        password:
           type: string
-        data:
-          $ref: '#/components/schemas/UserView'
-    ErrorResponse:
+          format: password
+          example: securePass123
+      required:
+        - username
+        - password
+    ChangePasswordRequest:
       type: object
       properties:
-        code:
+        currentPassword:
           type: string
-          example: INTERNAL_SERVER_ERROR
-        message:
+          example: oldPass123
+        newPassword:
           type: string
-          example: Unexpected error occurred
-        data:
-          nullable: true
-    LogoutResponse:
+          example: newSecurePass456
+      required:
+        - currentPassword
+        - newPassword
+    ResetPasswordRequestRequest:
       type: object
       properties:
-        status:
+        email:
           type: string
-          example: logged_out
+          format: email
+          example: jane@example.com
+      required:
+        - email
+    ResetPasswordConfirmRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          example: reset-token-xyz
+        newPassword:
+          type: string
+          example: secureNewPass789
+      required:
+        - token
+        - newPassword
+    VerifyEmailRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          example: email-verification-token
+      required:
+        - token
+    GenericSuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResponseEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: ok
